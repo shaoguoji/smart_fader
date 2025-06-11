@@ -31,12 +31,15 @@ static adc_channel_t channel[1] = {ADC_CHANNEL_0};
 
 static TaskHandle_t s_task_handle;
 static const char *TAG = "ADC_POS";
+static SemaphoreHandle_t s_adc_sem = NULL;
 
 static uint32_t filter_buffer[FILTER_WINDOW_SIZE] = {0};
 static uint8_t filter_index = 0;
 
 static uint8_t result[ADC_POS_READ_LEN] = {0};
 static adc_continuous_handle_t s_handle = NULL;
+
+static uint32_t filtered_data = 0;
 
 static uint32_t apply_filter(uint32_t new_value) {
     filter_buffer[filter_index] = new_value;
@@ -52,9 +55,7 @@ static uint32_t apply_filter(uint32_t new_value) {
 static bool IRAM_ATTR s_conv_done_cb(adc_continuous_handle_t handle, const adc_continuous_evt_data_t *edata, void *user_data)
 {
     BaseType_t mustYield = pdFALSE;
-    //Notify that ADC continuous driver has done enough number of conversions
-    vTaskNotifyGiveFromISR(s_task_handle, &mustYield);
-
+    xSemaphoreGiveFromISR(s_adc_sem, &mustYield);
     return (mustYield == pdTRUE);
 }
 
@@ -88,8 +89,47 @@ static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num)
     ESP_ERROR_CHECK(adc_continuous_config(s_handle, &dig_cfg));
 }
 
+void adc_pos_update_task(void *pvParameters)
+{
+    esp_err_t ret;
+    uint32_t ret_num = 0;
+    uint8_t result[ADC_POS_READ_LEN] = {0};
+    memset(result, 0xcc, ADC_POS_READ_LEN);
+
+    while (1) {
+        xSemaphoreTake(s_adc_sem, portMAX_DELAY);
+        char unit[] = ADC_POS_UNIT_STR(ADC_POS_UNIT);
+    
+        while (1) {
+            ret = adc_continuous_read(s_handle, result, ADC_POS_READ_LEN, &ret_num, 0);
+            if (ret == ESP_OK) {
+                for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES) {
+                    adc_digi_output_data_t *p = (adc_digi_output_data_t*)&result[i];
+                    uint32_t chan_num = ADC_POS_GET_CHANNEL(p);
+                    uint32_t data = ADC_POS_GET_DATA(p);
+                    if (chan_num < SOC_ADC_CHANNEL_NUM(ADC_POS_UNIT)) {
+                        filtered_data = apply_filter(data);
+                    }
+                }
+                vTaskDelay(1);
+            } else if (ret == ESP_ERR_TIMEOUT) {
+                break;
+            }
+        }
+    }
+
+    ESP_ERROR_CHECK(adc_continuous_stop(s_handle));
+    ESP_ERROR_CHECK(adc_continuous_deinit(s_handle));
+}
+
 esp_err_t adc_pos_init(void)
 {
+    s_adc_sem = xSemaphoreCreateBinary();
+    if (s_adc_sem == NULL) {
+        ESP_LOGE(TAG, "Failed to create ADC semaphore");
+        return ESP_ERR_NO_MEM;
+    }
+
     s_task_handle = xTaskGetCurrentTaskHandle();
     continuous_adc_init(channel, sizeof(channel) / sizeof(adc_channel_t));
 
@@ -97,40 +137,37 @@ esp_err_t adc_pos_init(void)
         .on_conv_done = s_conv_done_cb,
     };
 
+    xTaskCreate(adc_pos_update_task, "adc_pos_update_task", 2048, NULL, 5, NULL);
+
     ESP_ERROR_CHECK(adc_continuous_register_event_callbacks(s_handle, &cbs, NULL));
     ESP_ERROR_CHECK(adc_continuous_start(s_handle));
 
     return ESP_OK;
 }
 
+
 esp_err_t adc_pos_get_value(uint32_t *pos)
 {
-    esp_err_t ret;
-    uint32_t ret_num = 0;
-
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    char unit[] = ADC_POS_UNIT_STR(ADC_POS_UNIT);
-
-
-    ret = adc_continuous_read(s_handle, result, ADC_POS_READ_LEN, &ret_num, 0);
-    if (ret == ESP_OK) {
-        for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES) {
-            adc_digi_output_data_t *p = (adc_digi_output_data_t*)&result[i];
-            uint32_t chan_num = ADC_POS_GET_CHANNEL(p);
-            uint32_t data = ADC_POS_GET_DATA(p);
-            if (chan_num < SOC_ADC_CHANNEL_NUM(ADC_POS_UNIT)) {
-                uint32_t filtered_data = apply_filter(data);
-                *pos = filtered_data;
-                return ESP_OK;
-            }
-            else {
-                return ESP_FAIL;
-            }
-        }
+    if (pos == NULL) {
+        return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_ERROR_CHECK(adc_continuous_stop(s_handle));
-    ESP_ERROR_CHECK(adc_continuous_deinit(s_handle));
+    *pos = filtered_data;
+    return ESP_OK;
+}
 
-    return ESP_FAIL;
+esp_err_t adc_pos_deinit(void)
+{
+    if (s_handle) {
+        ESP_ERROR_CHECK(adc_continuous_stop(s_handle));
+        ESP_ERROR_CHECK(adc_continuous_deinit(s_handle));
+        s_handle = NULL;
+    }
+    
+    if (s_adc_sem) {
+        vSemaphoreDelete(s_adc_sem);
+        s_adc_sem = NULL;
+    }
+    
+    return ESP_OK;
 }

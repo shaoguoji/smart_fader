@@ -23,6 +23,13 @@ esp_err_t adc_pos_init(void);
  */
 esp_err_t adc_pos_get_value(uint32_t *pos);
 
+/**
+ * @brief Deinitialize the ADC position reading module
+ * 
+ * @return esp_err_t ESP_OK on success, otherwise an error code
+ */
+esp_err_t adc_pos_deinit(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -49,30 +49,17 @@ void adc_pos_test_task(void *pvParameters)
         } else {
             ESP_LOGE(TAG, "Failed to get ADC position: %d", ret);
         }
-        vTaskDelay(pdMS_TO_TICKS(100)); // 每100ms读取一次
+        vTaskDelay(pdMS_TO_TICKS(10)); // 每10ms读取一次
     }
 }
 
 void app_main(void)
 {
-
     // Initialize motor driver and ADC
-    // dc_motor_init();
-    if (adc_pos_init() != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize ADC position");
-    }
-
-    uint32_t pos;
-    while (1) {
-        if (adc_pos_get_value(&pos) == ESP_OK) {
-            ESP_LOGI(TAG, "ADC Position: %lu (0x%lx)", pos, pos);
-        } else {
-            ESP_LOGE(TAG, "Failed to get ADC position");
-        }
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
+    dc_motor_init();
+    adc_pos_init();
     
     // Create tasks
-    // xTaskCreate(motor_test_task, "motor_test", 4096, NULL, 5, NULL);
-    // xTaskCreate(adc_pos_test_task, "adc_test", 4096, NULL, 5, NULL);
+    xTaskCreate(motor_test_task, "motor_test", 4096, NULL, 5, NULL);
+    xTaskCreate(adc_pos_test_task, "adc_test", 4096, NULL, 5, NULL);
 } 
