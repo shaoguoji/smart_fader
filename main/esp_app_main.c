@@ -13,9 +13,9 @@ static const char *TAG = "MOTOR_TEST";
 #define TEST_POSITIONS_COUNT 4
 static const float test_positions[TEST_POSITIONS_COUNT] = {
     0.0f,      // 起始位置
-    1000.0f,   // 第一个目标位置
-    2000.0f,   // 第二个目标位置
-    0.0f       // 返回起始位置
+    4000.0f,   // 第一个目标位置
+    0.0f,      // 第二个目标位置
+    2000.0f    // 第三个目标位置
 };
 
 // 位置环PID参数
@@ -37,42 +37,7 @@ static void motor_test_task(void *pvParameters)
     esp_err_t ret;
     int pos_index = 0;
 
-    // 初始化电机控制系统
-    ret = motor_control_init();
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize motor control system");
-        vTaskDelete(NULL);
-        return;
-    }
-    ESP_LOGI(TAG, "Motor control system initialized");
-
-    // 设置PID参数
-    ret = motor_control_set_pos_pid_params(POS_PID_KP, POS_PID_KI, POS_PID_KD);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set position PID parameters");
-        motor_control_deinit();
-        vTaskDelete(NULL);
-        return;
-    }
-
-    ret = motor_control_set_speed_pid_params(SPEED_PID_KP, SPEED_PID_KI, SPEED_PID_KD);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set speed PID parameters");
-        motor_control_deinit();
-        vTaskDelete(NULL);
-        return;
-    }
-    ESP_LOGI(TAG, "PID parameters set");
-
-    // 启动电机控制
-    ret = motor_control_start();
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to start motor control");
-        motor_control_deinit();
-        vTaskDelete(NULL);
-        return;
-    }
-    ESP_LOGI(TAG, "Motor control started");
+    motor_control_start();
 
     // 测试循环
     while (1) {
@@ -106,17 +71,18 @@ static void motor_test_task(void *pvParameters)
 
 void app_main(void)
 {
-    // 创建电机测试任务
-    // xTaskCreate(motor_test_task, "motor_test", 4096, NULL, 5, NULL);
-    // ESP_LOGI(TAG, "Motor test task created");
-
     motor_control_init();
-    motor_control_start();
+    // 创建电机测试任务
+    xTaskCreate(motor_test_task, "motor_test", 4096, NULL, 5, NULL);
+    ESP_LOGI(TAG, "Motor test task created");
 
-    // motor_control_set_pos(2000);
+//     motor_control_init();
+//     motor_control_set_pos(2048); // move to middle position
 
-    vTaskDelay(pdMS_TO_TICKS(5000));
+//     motor_control_start();
 
-    motor_control_stop();
+//     vTaskDelay(pdMS_TO_TICKS(2000));
+
+//     motor_control_stop();
     
 } 

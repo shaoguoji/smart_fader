@@ -25,21 +25,21 @@ static const char *TAG = "MOTOR_CTRL";
 #define TIMER_BASE_CLK                (APB_CLK_FREQ)  // 80MHz
 
 // 位置环PID参数
-#define POS_PID_KP                   0.1f
-#define POS_PID_KI                   0.01f
-#define POS_PID_KD                   0.001f
-#define POS_PID_MAX_OUTPUT          1000.0f  // 最大速度限制
-#define POS_PID_MIN_OUTPUT          -1000.0f
+#define POS_PID_KP                   1.0f
+#define POS_PID_KI                   0.0f
+#define POS_PID_KD                   0.1f
+#define POS_PID_MAX_OUTPUT          4095.0f  // 最大速度限制
+#define POS_PID_MIN_OUTPUT          -4095.0f
 
 // 速度环PID参数
-#define SPEED_PID_KP                0.001f
-#define SPEED_PID_KI                0.001f
-#define SPEED_PID_KD                0.0001f
-#define SPEED_PID_MAX_OUTPUT        4095.0f  // 最大PWM输出
-#define SPEED_PID_MIN_OUTPUT        -4095.0f
+#define SPEED_PID_KP                5.0f
+#define SPEED_PID_KI                0.0001f
+#define SPEED_PID_KD                0.01f
+#define SPEED_PID_MAX_OUTPUT        3000.0f  // 最大PWM输出
+#define SPEED_PID_MIN_OUTPUT        -3000.0f
 
 // 速度计算参数
-#define SPEED_FILTER_FACTOR         0.1f    // 速度滤波系数
+#define SPEED_FILTER_FACTOR         0.5f    // 速度滤波系数
 
 static bool s_motor_ctrl_running = false;
 static float s_last_position = 0.0f;
@@ -65,9 +65,19 @@ void periodic_timer_callback(void* arg)
 // 计算当前速度（单位：位置/秒）
 static float calculate_speed(float current_pos)
 {
-    float speed = (current_pos - s_last_position) * MOTOR_CTRL_TIMER_FREQ_HZ;
-    // 低通滤波
-    s_current_speed = s_current_speed * (1.0f - SPEED_FILTER_FACTOR) + speed * SPEED_FILTER_FACTOR;
+    static bool is_first_call = true;
+    float speed;
+    
+    if (is_first_call) {
+        speed = 0.0f;
+        s_current_speed = 0.0f;
+        is_first_call = false;
+    } else {
+        speed = (current_pos - s_last_position) * MOTOR_CTRL_TIMER_FREQ_HZ;
+        // 低通滤波
+        s_current_speed = s_current_speed * (1.0f - SPEED_FILTER_FACTOR) + speed * SPEED_FILTER_FACTOR;
+    }
+    
     s_last_position = current_pos;
     return s_current_speed;
 }
@@ -87,13 +97,14 @@ static void motor_control_cal(void)
     // 计算当前速度
     float current_speed = calculate_speed((float)current_pos);
     
-    // // 位置环PID计算，输出为速度指令
-    // pos_pid_output = user_pid_calculate(s_pos_pid, (float)current_pos);
-    
-    // // 速度环PID计算，输出为PWM值
-    // speed_pid_output = user_pid_calculate(s_speed_pid, current_speed - pos_pid_output);
+    // user_pid_set_target(s_pos_pid, 2000);
 
-    speed_pid_output = user_pid_calculate(s_speed_pid, 200 - current_speed);
+    // 位置环PID计算，输出为速度指令
+    pos_pid_output = user_pid_calculate(s_pos_pid, (float)current_pos);
+    
+    // 速度环PID计算，输出为PWM值
+    user_pid_set_target(s_speed_pid, pos_pid_output);
+    speed_pid_output = user_pid_calculate(s_speed_pid, current_speed);
 
     // 应用电机输出
     dc_motor_set_speed((int)speed_pid_output);
@@ -169,7 +180,7 @@ esp_err_t motor_control_stop(void)
 esp_err_t motor_control_set_pos(float target_position)
 {
     // if (!s_motor_ctrl_running) {
-        return ESP_ERR_INVALID_STATE;
+        // return ESP_ERR_INVALID_STATE;
     // }
 
     return user_pid_set_target(s_pos_pid, target_position);
