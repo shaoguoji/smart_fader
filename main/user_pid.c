@@ -67,6 +67,20 @@ esp_err_t user_pid_set_target(user_pid_handle_t handle, float target)
     return ESP_OK;
 }
 
+esp_err_t user_pid_get_params(user_pid_handle_t handle, float *kp, float *ki, float *kd)
+{
+    if (handle == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    user_pid_t *pid = (user_pid_t *)handle;
+    *kp = pid->kp;
+    *ki = pid->ki;
+    *kd = pid->kd;
+
+    return ESP_OK;
+}
+
 float user_pid_calculate(user_pid_handle_t handle, float current_value)
 {
     if (handle == NULL) {

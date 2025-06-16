@@ -81,6 +81,12 @@ esp_err_t motor_control_set_pos_pid_params(float kp, float ki, float kd);
  */
 esp_err_t motor_control_set_speed_pid_params(float kp, float ki, float kd);
 
+esp_err_t motor_control_get_speed_pid(float *kp, float *ki, float *kd);
+
+esp_err_t motor_control_get_position_pid(float *kp, float *ki, float *kd);
+
+float motor_control_get_current_pos(void);
+
 /**
  * @brief 反初始化电机控制系统
  * 

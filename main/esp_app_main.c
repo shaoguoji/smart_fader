@@ -7,6 +7,7 @@
 #include "user_pid.h"
 #include "dc_motor.h"
 #include "wifi_manager.h"
+#include "websocket_manager.h"
 
 static const char *TAG = "MOTOR_TEST";
 
@@ -32,7 +33,55 @@ static const float test_positions[TEST_POSITIONS_COUNT] = {
 // 位置停留时间（毫秒）
 #define POSITION_HOLD_TIME_MS 2000
 
-// 电机控制测试任务,
+// WebSocket 消息回调函数
+static void ws_message_handler(ws_msg_type_t type, void* data)
+{
+    switch (type) {
+        case WS_MSG_TYPE_FADER: {
+            int position = *(int*)data;
+            // 更新滑块位置
+            motor_control_set_pos(position);
+            break;
+        }
+        case WS_MSG_TYPE_PID_SPEED: {
+            pid_params_t* params = (pid_params_t*)data;
+            // 更新速度 PID 参数
+            motor_control_set_speed_pid_params(params->kp, params->ki, params->kd);
+            break;
+        }
+        case WS_MSG_TYPE_PID_POS: {
+            pid_params_t* params = (pid_params_t*)data;
+            // 更新位置 PID 参数
+            motor_control_set_pos_pid_params(params->kp, params->ki, params->kd);
+            break;
+        }
+    }
+}
+
+// 状态更新任务
+static void status_update_task(void *pvParameters)
+{
+    while (1) {
+        // 获取当前滑块位置
+        float current_position = motor_control_get_current_pos();
+        int pos_int = (int)current_position;
+        // 广播位置更新
+        websocket_manager_broadcast(WS_MSG_TYPE_FADER, &pos_int, sizeof(pos_int));
+        
+        // 获取当前 PID 参数
+        pid_params_t speed_pid, pos_pid;
+        motor_control_get_speed_pid(&speed_pid.kp, &speed_pid.ki, &speed_pid.kd);
+        motor_control_get_position_pid(&pos_pid.kp, &pos_pid.ki, &pos_pid.kd);
+        
+        // 广播 PID 参数更新
+        websocket_manager_broadcast(WS_MSG_TYPE_PID_SPEED, &speed_pid, sizeof(speed_pid));
+        websocket_manager_broadcast(WS_MSG_TYPE_PID_POS, &pos_pid, sizeof(pos_pid));
+        
+        vTaskDelay(pdMS_TO_TICKS(100)); // 100ms 更新一次
+    }
+}
+
+// 电机控制测试任务
 static void motor_test_task(void *pvParameters)
 {
     esp_err_t ret;
@@ -76,18 +125,18 @@ void app_main(void)
     ESP_ERROR_CHECK(wifi_manager_init("阿国的iPhone", "88888888"));
     ESP_ERROR_CHECK(wifi_manager_start());
 
+    // 初始化 WebSocket 服务器，端口改为 1234
+    ESP_ERROR_CHECK(websocket_manager_init(1234, ws_message_handler));
+    ESP_ERROR_CHECK(websocket_manager_start());
+
+    // 初始化电机控制
     motor_control_init();
-    // 创建电机测试任务
+
+    // 创建状态更新任务
+    xTaskCreate(status_update_task, "status_update", 4096, NULL, 5, NULL);
+    ESP_LOGI(TAG, "Status update task created");
+
+    // 创建电机测试任务（可选）
     // xTaskCreate(motor_test_task, "motor_test", 4096, NULL, 5, NULL);
     // ESP_LOGI(TAG, "Motor test task created");
-
-//     motor_control_init();
-//     motor_control_set_pos(2048); // move to middle position
-
-//     motor_control_start();
-
-//     vTaskDelay(pdMS_TO_TICKS(2000));
-
-//     motor_control_stop();
-    
 } 

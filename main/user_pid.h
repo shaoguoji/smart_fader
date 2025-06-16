@@ -29,6 +29,16 @@ esp_err_t user_pid_init(user_pid_handle_t *handle, float kp, float ki, float kd,
 esp_err_t user_pid_set_params(user_pid_handle_t handle, float kp, float ki, float kd);
 
 /**
+ * @brief 获取PID参数
+ * 
+ * @param handle PID控制器句柄
+ * @param kp 比例系数
+ * @param ki 积分系数
+ * @param kd 微分系数
+ */
+esp_err_t user_pid_get_params(user_pid_handle_t handle, float *kp, float *ki, float *kd);
+
+/**
  * @brief 设置目标值
  * 
  * @param handle PID控制器句柄

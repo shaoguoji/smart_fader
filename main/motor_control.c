@@ -204,6 +204,13 @@ esp_err_t motor_control_set_speed_pid_params(float kp, float ki, float kd)
     return user_pid_set_params(s_speed_pid, kp, ki, kd);
 }
 
+float motor_control_get_current_pos(void)
+{
+    uint32_t pos;
+    adc_pos_get_value(&pos);
+    return (float)pos;
+}
+
 esp_err_t motor_control_deinit(void)
 {
     // 停止控制
@@ -223,4 +230,22 @@ esp_err_t motor_control_deinit(void)
     esp_timer_delete(periodic_timer);
 
     return ESP_OK;
+}
+
+esp_err_t motor_control_get_speed_pid(float *kp, float *ki, float *kd)
+{
+    if (!s_speed_pid) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    return user_pid_get_params(s_speed_pid, kp, ki, kd);
+}
+
+esp_err_t motor_control_get_position_pid(float *kp, float *ki, float *kd)
+{
+    if (!s_pos_pid) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    return user_pid_get_params(s_pos_pid, kp, ki, kd);
 }
