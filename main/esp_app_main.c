@@ -6,6 +6,7 @@
 #include "adc_read_pos.h"
 #include "user_pid.h"
 #include "dc_motor.h"
+#include "wifi_manager.h"
 
 static const char *TAG = "MOTOR_TEST";
 
@@ -31,7 +32,7 @@ static const float test_positions[TEST_POSITIONS_COUNT] = {
 // 位置停留时间（毫秒）
 #define POSITION_HOLD_TIME_MS 2000
 
-// 电机控制测试任务
+// 电机控制测试任务,
 static void motor_test_task(void *pvParameters)
 {
     esp_err_t ret;
@@ -71,10 +72,14 @@ static void motor_test_task(void *pvParameters)
 
 void app_main(void)
 {
+    // 初始化 WiFi
+    ESP_ERROR_CHECK(wifi_manager_init("阿国的iPhone", "88888888"));
+    ESP_ERROR_CHECK(wifi_manager_start());
+
     motor_control_init();
     // 创建电机测试任务
-    xTaskCreate(motor_test_task, "motor_test", 4096, NULL, 5, NULL);
-    ESP_LOGI(TAG, "Motor test task created");
+    // xTaskCreate(motor_test_task, "motor_test", 4096, NULL, 5, NULL);
+    // ESP_LOGI(TAG, "Motor test task created");
 
 //     motor_control_init();
 //     motor_control_set_pos(2048); // move to middle position
