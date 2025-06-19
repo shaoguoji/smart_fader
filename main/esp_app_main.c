@@ -122,7 +122,7 @@ static void motor_test_task(void *pvParameters)
 void app_main(void)
 {
     // 初始化 WiFi
-    ESP_ERROR_CHECK(wifi_manager_init("阿国的iPhone", "88888888"));
+    ESP_ERROR_CHECK(wifi_manager_init("your_ssid", "your_password"));
     ESP_ERROR_CHECK(wifi_manager_start());
 
     // 初始化 WebSocket 服务器，端口改为 1234
@@ -131,6 +131,7 @@ void app_main(void)
 
     // 初始化电机控制
     motor_control_init();
+    motor_control_start();
 
     // 创建状态更新任务
     xTaskCreate(status_update_task, "status_update", 4096, NULL, 5, NULL);

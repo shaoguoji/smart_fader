@@ -235,16 +235,17 @@ esp_err_t websocket_manager_init(uint16_t port, ws_msg_callback_t callback)
     }
 
     httpd_uri_t ws = {
-        .uri = "/ws",
+        .uri = "/",
         .method = HTTP_GET,
         .handler = ws_handler,
-        .user_ctx = NULL
+        .user_ctx = NULL,
+        .is_websocket = true
     };
 
     ESP_LOGI(TAG, "Registering WebSocket URI handler");
     httpd_register_uri_handler(server, &ws);
     httpd_register_uri_handler(server, &(httpd_uri_t){
-        .uri = "/ws",
+        .uri = "/",
         .method = HTTP_GET,
         .handler = ws_connect_handler,
         .user_ctx = NULL
@@ -269,9 +270,9 @@ esp_err_t websocket_manager_start(void)
 
     ESP_LOGI(TAG, "Starting WebSocket server");
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 16;
-    config.stack_size = 8192;
-    config.server_port = server_port;
+    // config.max_uri_handlers = 16;
+    // config.stack_size = 8192;
+    // config.server_port = server_port;
 
     if (httpd_start(&server, &config) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start HTTP server");
@@ -279,7 +280,7 @@ esp_err_t websocket_manager_start(void)
     }
 
     httpd_uri_t ws = {
-        .uri = "/ws",
+        .uri = "/",
         .method = HTTP_GET,
         .handler = ws_handler,
         .user_ctx = NULL
@@ -287,7 +288,7 @@ esp_err_t websocket_manager_start(void)
 
     httpd_register_uri_handler(server, &ws);
     httpd_register_uri_handler(server, &(httpd_uri_t){
-        .uri = "/ws",
+        .uri = "/",
         .method = HTTP_GET,
         .handler = ws_connect_handler,
         .user_ctx = NULL
